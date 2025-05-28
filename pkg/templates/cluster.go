@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"os"
 
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model"
@@ -45,6 +46,8 @@ func Cluster(list []*Template) [][]*Template {
 	dns := make(map[uint64][]*Template)
 	ssl := make(map[uint64][]*Template)
 
+	hashNames := make(map[string][]string)
+
 	final := [][]*Template{}
 
 	// Split up templates that might be clusterable
@@ -63,6 +66,7 @@ func Cluster(list []*Template) [][]*Template {
 					dns[hash] = []*Template{}
 				}
 				dns[hash] = append(dns[hash], template)
+				hashNames[fmt.Sprintf("DNS[%d]", hash)] = append(hashNames[fmt.Sprintf("DNS[%d]", hash)], template.ID)
 			} else {
 				final = append(final, []*Template{template})
 			}
@@ -74,6 +78,7 @@ func Cluster(list []*Template) [][]*Template {
 					http[hash] = []*Template{}
 				}
 				http[hash] = append(http[hash], template)
+				hashNames[fmt.Sprintf("HTTP[%d]", hash)] = append(hashNames[fmt.Sprintf("HTTP[%d]", hash)], template.ID)
 			} else {
 				final = append(final, []*Template{template})
 			}
@@ -84,6 +89,7 @@ func Cluster(list []*Template) [][]*Template {
 					ssl[hash] = []*Template{}
 				}
 				ssl[hash] = append(ssl[hash], template)
+				hashNames[fmt.Sprintf("SSL[%d]", hash)] = append(hashNames[fmt.Sprintf("SSL[%d]", hash)], template.ID)
 			} else {
 				final = append(final, []*Template{template})
 			}
@@ -103,7 +109,23 @@ func Cluster(list []*Template) [][]*Template {
 		final = append(final, templates)
 	}
 
+	fileContent := strings.Builder{}
+	for hash, names := range hashNames {
+		fileContent.WriteString(fmt.Sprintf("%s: %s\n", hash, strings.Join(names, ", ")))
+	}
+	_ = writeClusterNamesToFile("/clustered_templates.txt", fileContent.String())
+
 	return final
+}
+
+func writeClusterNamesToFile(filename, content string) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(content)
+	return err
 }
 
 // ClusterID transforms clusterization into a mathematical hash repeatable across executions with the same templates
